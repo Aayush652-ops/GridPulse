@@ -1,0 +1,18 @@
+# GridPulse Training Dependencies (local development only)
+# Includes everything in production plus training-specific packages.
+# Usage: pip install -r requirements-training.txt
+
+-r requirements-production.txt
+
+# SentenceTransformer for text embedding generation during model training
+sentence-transformers
+
+# Visualization & EDA
+matplotlib
+seaborn
+folium
+
+# Geospatial processing
+geopandas
+pyproj
+shapely

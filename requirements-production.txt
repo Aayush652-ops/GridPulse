@@ -1,0 +1,15 @@
+# GridPulse Production Dependencies (Render / Railway)
+# These are the ONLY packages needed for the FastAPI inference server.
+# For training dependencies, see requirements-training.txt
+
+pandas
+numpy
+scikit-learn
+h3
+fastapi
+uvicorn[standard]
+joblib
+google-generativeai
+xgboost
+lightgbm
+catboost

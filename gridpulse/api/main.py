@@ -1,6 +1,7 @@
 import os
 import datetime
 import uuid
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -20,14 +21,15 @@ from gridpulse.models.forecasting import predict_congestion
 from gridpulse.models.optimization import calculate_optimal_resources
 from gridpulse.rag import RAGEngine
 
-app = FastAPI(title="GridPulse - Astram Predictive Congestion Mitigator")
-
 rag_engine = None
 
-@app.on_event("startup")
-def startup_event():
+@asynccontextmanager
+async def lifespan(app):
     global rag_engine
     rag_engine = RAGEngine()
+    yield
+
+app = FastAPI(title="GridPulse - Astram Predictive Congestion Mitigator", lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(

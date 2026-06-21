@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-DB_PATH = 'gridpulse.db'
+DB_PATH = os.environ.get("GRIDPULSE_DB_PATH", "gridpulse.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)

@@ -17,6 +17,9 @@ To avoid **CORS (Cross-Origin Resource Sharing)** issues and browser cookie bloc
 
 ## 🚀 Step 1: Deploy Backend on Render
 
+> [!TIP]
+> For a dedicated, step-by-step guide on Render deployments, including **one-click Blueprint deployment** (`render.yaml`) and database persistence, check out the [README_RENDER.md](file:///c:/Users/vansh%20tanwar/gridpulse/README_RENDER.md) guide.
+
 Render will host the FastAPI server, SQLite database, and train model weights.
 
 1. **Sign Up / Log In**: Go to [Render](https://render.com/) and log in.
@@ -29,7 +32,7 @@ Render will host the FastAPI server, SQLite database, and train model weights.
    * **Runtime**: `Python`
    * **Build Command**: 
      ```bash
-     pip install -r requirements.txt
+     pip install -r requirements-production.txt
      ```
    * **Start Command**: 
      ```bash

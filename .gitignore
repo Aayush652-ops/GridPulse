@@ -25,6 +25,12 @@ __pycache__/
 # Serialized ML Model binaries
 gridpulse/models/*.joblib
 
+# CatBoost training artifacts (not needed for deployment)
+catboost_info/
+
+# Scratch scripts
+scratch/
+
 # IDE & Editor Configs
 .vscode/
 .idea/
