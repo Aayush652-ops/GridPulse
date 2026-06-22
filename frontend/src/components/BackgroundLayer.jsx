@@ -7,7 +7,9 @@ export default function BackgroundLayer() {
     const video = videoRef.current;
     if (!video) return;
 
-    const initializeVideo = () => {
+    let intervalId;
+
+    const syncVideoToTime = () => {
       if (Number.isNaN(video.duration) || video.duration === 0) return;
 
       const now = new Date();
@@ -20,32 +22,29 @@ export default function BackgroundLayer() {
       // Calculate how far we are into the 24-hour day (0.0 to 1.0)
       const fractionOfDay = secondsSinceMidnight / 86400;
       
-      // Start the video from the current time of day
+      // Explicitly set the video frame to match the time of day
       video.currentTime = fractionOfDay * video.duration;
-      
-      // Scale the playback rate so that the video duration fits exactly 24 hours (86400 seconds)
-      let targetPlaybackRate = video.duration / 86400;
-      // Clamp the playback rate to a browser-supported range (typically 0.0625 to 16)
-      targetPlaybackRate = Math.max(0.0625, Math.min(targetPlaybackRate, 16));
-      video.playbackRate = targetPlaybackRate;
-      
-      // Play the video naturally at this scaled playback rate
-      video.play().catch(e => console.error("Video play failed:", e));
     };
 
     const onLoadedMetadata = () => {
-      initializeVideo();
+      // Pause the video because we will manually control the frames like a clock
+      video.pause(); 
+      syncVideoToTime();
+      
+      // Update the frame every second to keep it strictly synced
+      intervalId = setInterval(syncVideoToTime, 1000);
     };
 
     video.addEventListener('loadedmetadata', onLoadedMetadata);
 
     // If metadata is already loaded when the effect runs, initialize immediately
     if (video.readyState >= 1) {
-      initializeVideo();
+      onLoadedMetadata();
     }
 
     return () => {
       video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      if (intervalId) clearInterval(intervalId);
     };
   }, []);
 
