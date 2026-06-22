@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Siren, Activity, Shield, Flame, MapPin, Navigation, Clock, Zap, Target, PlayCircle, BarChart3, AlertCircle, RefreshCw } from 'lucide-react';
+import { Siren, Activity, Shield, Flame, MapPin, Navigation, Clock, Zap, Target, PlayCircle, BarChart3, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
 import { findNearestHospital, findNearestFireStation, findNearestPoliceStation, getHaversineDistance } from '../utils/geoUtils';
 import EmergencyInfrastructureLayer from './EmergencyInfrastructureLayer';
 import { getApiUrl } from '../api';
@@ -36,6 +36,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
   const [destNode, setDestNode] = useState(null);
   const [routeGeoJSON, setRouteGeoJSON] = useState(null);
   
+  const [approvalNeeded, setApprovalNeeded] = useState(false);
   const [simulationStep, setSimulationStep] = useState(0); 
   const simulationStepRef = useRef(0);
   
@@ -108,6 +109,25 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
           }
         });
         
+        // Add standard route layer (Least Optimized)
+        map.addSource('standard-route', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+        
+        map.addLayer({
+          id: 'standard-route-line',
+          type: 'line',
+          source: 'standard-route',
+          layout: { 'line-join': 'round', 'line-cap': 'round' },
+          paint: {
+            'line-color': '#ef4444',
+            'line-width': 4,
+            'line-dasharray': [2, 2],
+            'line-opacity': 0.7
+          }
+        });
+        
         // Add route layer
         map.addSource('emergency-route', {
           type: 'geojson',
@@ -120,9 +140,10 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
           source: 'emergency-route',
           layout: { 'line-join': 'round', 'line-cap': 'round' },
           paint: {
-            'line-color': '#10b981',
+            'line-color': '#f59e0b', // Initially yellow/orange to indicate proposed
             'line-width': 6,
-            'line-opacity': 0.8
+            'line-opacity': 0.8,
+            'line-dasharray': [2, 2]
           }
         });
         
@@ -144,7 +165,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       });
 
       map.on('click', (e) => {
-        if (simulationStepRef.current > 0 && simulationStepRef.current < 7) return; 
+        if (simulationStepRef.current > 0 && simulationStepRef.current < 4) return; // Don't interrupt running sim
         setIncidentCoords([e.lngLat.lng, e.lngLat.lat]);
       });
 
@@ -238,6 +259,11 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
         targetIncidentMarkerRef.current = null;
       }
       
+      if (vehicleMarkerRef.current) {
+         vehicleMarkerRef.current.remove();
+         vehicleMarkerRef.current = null;
+      }
+      
       const el = document.createElement('div');
       el.className = 'erc-incident-marker';
       el.innerHTML = `<div class="erc-pulse-ring"></div><i class="fa-solid fa-triangle-exclamation" style="color:white; font-size: 14px;"></i>`;
@@ -252,91 +278,59 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       const lat = incidentCoords[1];
       const lng = incidentCoords[0];
       
+      // NEW LOGIC: Vehicle starts at the critical location (Incident) and goes to Nearest Center.
+      source = { lat, lng, name: 'Critical Incident Location', type: 'incident' };
+      
       if (vehicleType === 'ambulance') {
-        const hRes = findNearestHospital(lat, lng, nodesData);
-        if (hRes) {
-           source = hRes;
-           const tRes = findNearestHospital(lat, lng, nodesData.filter(n => n.type === 'trauma_center'));
-           dest = tRes ? tRes : source; 
-        }
+        dest = findNearestHospital(lat, lng, nodesData);
       } else if (vehicleType === 'fire_truck') {
-        source = findNearestFireStation(lat, lng, nodesData);
-        dest = { lat, lng, name: 'Target Incident', type: 'incident' };
+        dest = findNearestFireStation(lat, lng, nodesData);
       } else {
-        source = findNearestPoliceStation(lat, lng, nodesData);
-        dest = { lat, lng, name: 'Target Incident', type: 'incident' };
+        dest = findNearestPoliceStation(lat, lng, nodesData);
       }
       
       if (source && dest) {
          setSourceNode(source);
          setDestNode(dest);
+         fetchAndHighlightPath(source, dest);
       }
       
-      setSimulationStep(0);
-      setRouteGeoJSON(null);
-      if (mapReady && mapRef.current) {
-        const routeSrc = mapRef.current.getSource('emergency-route');
-        if (routeSrc) routeSrc.setData({ type: 'FeatureCollection', features: [] });
-        const bufSrc = mapRef.current.getSource('congestion-buffer');
-        if (bufSrc) bufSrc.setData({ type: 'FeatureCollection', features: [] });
-      }
     } catch (e) {
       console.error("Error handling incident coords", e);
     }
   }, [incidentCoords, vehicleType, nodesData, mapReady]);
 
-  const generateCircle = (center, radiusKm) => {
-    const points = 64;
-    const coords = [];
-    for (let i = 0; i < points; i++) {
-      const angle = (i * 360) / points;
-      const dx = radiusKm * Math.cos((angle * Math.PI) / 180);
-      const dy = radiusKm * Math.sin((angle * Math.PI) / 180);
-      const lat = center[1] + (dy / 111.32);
-      const lng = center[0] + (dx / (111.32 * Math.cos(center[1] * (Math.PI / 180))));
-      coords.push([lng, lat]);
-    }
-    coords.push(coords[0]);
-    return coords;
-  };
-
-  // Run Simulation workflow
-  const runSimulation = async () => {
-    if (!sourceNode || !destNode || simulationStep > 0) return;
-    
+  // Propose path automatically
+  const fetchAndHighlightPath = async (src, dst) => {
     try {
-      setSimulationStep(1);
+      setSimulationStep(0);
+      setApprovalNeeded(false);
       
-      // Smart Detour Logic: Avoid hotspots by routing via a perpendicular waypoint
-      let midLng = (sourceNode.lng + destNode.lng) / 2;
-      let midLat = (sourceNode.lat + destNode.lat) / 2;
-      
-      // Shift the midpoint slightly to create a "bypass" 
-      const shiftLng = midLng + (Math.random() > 0.5 ? 0.015 : -0.015);
-      const shiftLat = midLat + (Math.random() > 0.5 ? 0.015 : -0.015);
+      // Reset map layers
+      if (mapReady && mapRef.current) {
+        const routeSrc = mapRef.current.getSource('emergency-route');
+        if (routeSrc) routeSrc.setData({ type: 'FeatureCollection', features: [] });
+        
+        const standardRouteSrc = mapRef.current.getSource('standard-route');
+        if (standardRouteSrc) standardRouteSrc.setData({ type: 'FeatureCollection', features: [] });
+        
+        const bufSrc = mapRef.current.getSource('congestion-buffer');
+        if (bufSrc) bufSrc.setData({ type: 'FeatureCollection', features: [] });
+      }
 
-      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${sourceNode.lng},${sourceNode.lat};${shiftLng},${shiftLat};${destNode.lng},${destNode.lat}?overview=full&geometries=geojson`);
-      const data = await res.json();
+      // 1. Fetch Standard Path (Direct)
+      const resStandard = await fetch(`https://router.project-osrm.org/route/v1/driving/${src.lng},${src.lat};${dst.lng},${dst.lat}?overview=full&geometries=geojson`);
+      const dataStandard = await resStandard.json();
+      if (dataStandard.code !== 'Ok') throw new Error("Standard routing failed");
       
-      if (data.code !== 'Ok') throw new Error("Routing failed");
+      const standardRoute = dataStandard.routes[0];
+      const coords = standardRoute.geometry.coordinates;
       
-      const route = data.routes[0];
-      const distKm = (route.distance / 1000).toFixed(1);
-      const origEta = Math.round(route.duration / 60) + 12; // Base congestion penalty
-      const optEta = Math.round(route.duration / 60) * 0.45; // 55% improvement
+      // Find midpoint of standard route to place a simulated problem
+      const midPointIndex = Math.floor(coords.length / 2);
+      const problemPoint = coords[midPointIndex];
       
-      setMetrics({
-        originalEta: origEta,
-        optimizedEta: Math.round(optEta),
-        timeSaved: origEta - Math.round(optEta),
-        distance: distKm,
-        signalsMod: Math.floor(route.distance / 800),
-        fuelSaved: ((origEta - optEta) * 0.05).toFixed(1)
-      });
-      
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(2);
-      
+      // Draw congestion buffer exactly on the problem point
       if (mapReady) {
         const bufferGeo = {
           type: 'FeatureCollection',
@@ -344,35 +338,102 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
             type: 'Feature',
             geometry: {
               type: 'Polygon',
-              coordinates: [generateCircle([shiftLng, shiftLat], 1.2)] // Show area bypassed
+              coordinates: [generateCircle(problemPoint, 0.8)] // 800m congestion radius
             }
           }]
         };
         const bufSrc = mapRef.current.getSource('congestion-buffer');
         if (bufSrc) bufSrc.setData(bufferGeo);
       }
+
+      // 2. Fetch Optimized Path (Detour)
+      // We calculate a perpendicular shift to bypass the problem point
+      const dx = dst.lng - src.lng;
+      const dy = dst.lat - src.lat;
+      const length = Math.sqrt(dx*dx + dy*dy);
+      // Perpendicular vector
+      const px = -dy / length;
+      const py = dx / length;
       
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(3);
-      setRouteGeoJSON(route.geometry);
+      // Shift magnitude (~1.5 km depending on latitude)
+      const shiftMag = 0.015;
+      const detourLng = problemPoint[0] + px * shiftMag;
+      const detourLat = problemPoint[1] + py * shiftMag;
+
+      const resOpt = await fetch(`https://router.project-osrm.org/route/v1/driving/${src.lng},${src.lat};${detourLng},${detourLat};${dst.lng},${dst.lat}?overview=full&geometries=geojson`);
+      const dataOpt = await resOpt.json();
+      if (dataOpt.code !== 'Ok') throw new Error("Optimized routing failed");
+      
+      const optRoute = dataOpt.routes[0];
+      
+      const optDist = (optRoute.distance / 1000).toFixed(1);
+      
+      // Standard ETA gets huge penalty for going through congestion
+      const origEta = Math.round(standardRoute.duration / 60) + 15; 
+      // Optimized ETA is faster due to green corridor bypassing the congestion
+      const optEta = Math.round(optRoute.duration / 60) * 0.45; 
+      
+      setMetrics({
+        originalEta: origEta,
+        optimizedEta: Math.round(optEta),
+        timeSaved: origEta - Math.round(optEta),
+        distance: optDist,
+        signalsMod: Math.floor(optRoute.distance / 800),
+        fuelSaved: ((origEta - optEta) * 0.05).toFixed(1)
+      });
+      
+      setRouteGeoJSON(optRoute.geometry);
       
       if (mapReady) {
-        const routeSrc = mapRef.current.getSource('emergency-route');
-        if (routeSrc) routeSrc.setData(route.geometry);
+        // Draw standard route (Red, Dashed)
+        const stdSrc = mapRef.current.getSource('standard-route');
+        if (stdSrc) stdSrc.setData(standardRoute.geometry);
+        
+        // Draw optimized route (Green, Dashed initially)
+        mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
+        mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [2, 2]);
+        const optSrc = mapRef.current.getSource('emergency-route');
+        if (optSrc) optSrc.setData(optRoute.geometry);
         
         const bounds = new maplibregl.LngLatBounds();
-        route.geometry.coordinates.forEach(c => bounds.extend(c));
+        optRoute.geometry.coordinates.forEach(c => bounds.extend(c));
+        standardRoute.geometry.coordinates.forEach(c => bounds.extend(c));
         mapRef.current.fitBounds(bounds, { padding: 50 });
       }
       
-      await new Promise(r => setTimeout(r, 1500));
+      setSimulationStep(1); // Path Proposed
+      setApprovalNeeded(true);
+      
+    } catch (err) {
+      console.error("Path highlighting error:", err);
+    }
+  };
+
+  // Run Simulation workflow after approval
+  const approveAndRunSimulation = async () => {
+    if (!routeGeoJSON) return;
+    
+    setApprovalNeeded(false);
+    
+    try {
+      // Step 2: Signals Optimized
+      setSimulationStep(2);
+      
+      if (mapReady && mapRef.current) {
+        // Change route style to solid green corridor
+        mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
+        mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [1, 0]);
+      }
+      
+      await new Promise(r => setTimeout(r, 1000));
+      
+      // Step 3: Corridor Activated
+      setSimulationStep(3);
+      await new Promise(r => setTimeout(r, 1000));
+      
+      // Step 4: Progress (Vehicle movement animation)
       setSimulationStep(4);
-      
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(5);
-      
-      setSimulationStep(6);
-      animateVehicle(route.geometry.coordinates);
+      animateVehicle(routeGeoJSON.coordinates);
       
     } catch (err) {
       console.error("Simulation error:", err);
@@ -394,14 +455,23 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       .addTo(mapRef.current);
       
     let step = 0;
+    
+    // Slow down animation based on path length so it's visible
+    // For a typical path of 100-300 points, incrementing by 0.2 to 0.5 makes it slow and smooth.
+    const stepIncrement = Math.max(0.1, path.length / 400); 
+
     const animate = () => {
       if (!mapRef.current || !vehicleMarkerRef.current) return;
-      if (step >= path.length) {
-        setSimulationStep(7);
+      if (Math.floor(step) >= path.length) {
+        setSimulationStep(5); // Done
         return;
       }
-      vehicleMarkerRef.current.setLngLat(path[step]);
-      step += 2;
+      
+      // Get exact coordinate index
+      const currentIndex = Math.floor(step);
+      vehicleMarkerRef.current.setLngLat(path[currentIndex]);
+      
+      step += stepIncrement;
       requestAnimationFrame(animate);
     };
     
@@ -423,11 +493,11 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
           <div className="erc-sim-overlay">
             <div className="erc-sim-header">
               <Siren className="erc-spin" color="#ef4444" size={20} />
-              <h3>EMERGENCY CORRIDOR ACTIVE</h3>
+              <h3>EMERGENCY CORRIDOR</h3>
             </div>
             
             <div className="erc-sim-steps">
-              {['Detect', 'Scan', 'Optimize', 'Signals', 'Corridor', 'Progress', 'Done'].map((step, idx) => (
+              {['Proposed', 'Signals', 'Corridor', 'Progress', 'Done'].map((step, idx) => (
                 <div key={idx} className={`erc-step ${simulationStep > idx + 1 ? 'completed' : simulationStep === idx + 1 ? 'active' : ''}`}>
                   <div className="erc-step-dot"></div>
                   <span>{step}</span>
@@ -448,13 +518,13 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
           
           <div className="erc-card">
             <h3>Vehicle Simulator</h3>
-            <p className="erc-text-muted">Click on map to set incident location</p>
+            <p className="erc-text-muted">Click on map to mark critical location</p>
             
             <div className="erc-form-group">
               <label>Vehicle Type</label>
               <select value={vehicleType} onChange={e => setVehicleType(e.target.value)} className="erc-input">
-                <option value="ambulance">🚑 Ambulance (Trauma Unit)</option>
-                <option value="fire_truck">🚒 Fire Engine (Heavy)</option>
+                <option value="ambulance">🚑 Ambulance</option>
+                <option value="fire_truck">🚒 Fire Engine</option>
                 <option value="police">🚓 Police Interceptor</option>
               </select>
             </div>
@@ -470,9 +540,9 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
             
             <div className="erc-routing-info">
               <div className="erc-route-node">
-                <div className="erc-node-icon start"><Navigation size={12}/></div>
+                <div className="erc-node-icon start"><AlertCircle size={12}/></div>
                 <div>
-                  <span className="erc-node-label">Origin</span>
+                  <span className="erc-node-label">Start (Incident)</span>
                   <div className="erc-node-val">{sourceNode ? sourceNode.name : 'Waiting for incident...'}</div>
                 </div>
               </div>
@@ -480,19 +550,20 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
               <div className="erc-route-node">
                 <div className="erc-node-icon dest"><Target size={12}/></div>
                 <div>
-                  <span className="erc-node-label">Destination</span>
+                  <span className="erc-node-label">Nearest Center</span>
                   <div className="erc-node-val">{destNode ? destNode.name : 'Waiting for incident...'}</div>
                 </div>
               </div>
             </div>
 
             <button 
-              className={`erc-btn-primary ${(!sourceNode || simulationStep > 0) ? 'disabled' : ''}`}
-              onClick={runSimulation}
-              disabled={!sourceNode || simulationStep > 0}
+              className={`erc-btn-primary ${(!approvalNeeded) ? 'disabled' : ''}`}
+              onClick={approveAndRunSimulation}
+              disabled={!approvalNeeded}
+              style={{ backgroundColor: approvalNeeded ? '#3b82f6' : undefined, background: approvalNeeded ? 'linear-gradient(135deg, #3b82f6, #1d4ed8)' : undefined }}
             >
-              {simulationStep > 0 ? <RefreshCw className="erc-spin" size={16} /> : <PlayCircle size={16} />}
-              {simulationStep > 0 ? 'Simulation Running...' : 'Activate Green Corridor'}
+              {approvalNeeded ? <CheckCircle size={16} /> : (simulationStep > 1 ? <RefreshCw className="erc-spin" size={16} /> : <PlayCircle size={16} />)}
+              {approvalNeeded ? 'Approve Path & Start' : (simulationStep > 1 ? 'Simulation Running...' : 'Waiting for Path...')}
             </button>
           </div>
 
@@ -518,7 +589,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
             </div>
           </div>
           
-          {simulationStep >= 3 && (
+          {simulationStep >= 2 && (
             <motion.div 
               className="erc-card"
               initial={{ opacity: 0, y: 10 }}
@@ -527,7 +598,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
               <h3>AI Decision Insights</h3>
               <div className="erc-insight-item">
                 <AlertCircle size={14} color="#f59e0b" />
-                <span>Congestion scan identified <strong>3 critical bottlenecks</strong> along standard route.</span>
+                <span>Congestion scan identified <strong>critical bottlenecks</strong> along standard route.</span>
               </div>
               <div className="erc-insight-item">
                 <Zap size={14} color="#10b981" />
