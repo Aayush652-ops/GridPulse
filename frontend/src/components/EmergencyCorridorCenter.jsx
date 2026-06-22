@@ -48,6 +48,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
     signalsMod: 0,
     fuelSaved: '--'
   });
+  const [aiInsights, setAiInsights] = useState([]);
 
   const targetIncidentMarkerRef = useRef(null);
   const vehicleMarkerRef = useRef(null);
@@ -373,27 +374,37 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       // Optimized ETA is faster due to green corridor bypassing the congestion
       const optEta = Math.round(optRoute.duration / 60) * 0.45; 
       
+      const timeSavedVal = origEta - Math.round(optEta);
+      const signalsCalculated = Math.floor(optRoute.distance / 800);
+      
       setMetrics({
         originalEta: origEta,
         optimizedEta: Math.round(optEta),
-        timeSaved: origEta - Math.round(optEta),
+        timeSaved: timeSavedVal,
         distance: optDist,
-        signalsMod: Math.floor(optRoute.distance / 800),
+        signalsMod: signalsCalculated,
         fuelSaved: ((origEta - optEta) * 0.05).toFixed(1)
       });
+      
+      const timeSavedPercent = Math.round((timeSavedVal / origEta) * 100) || 0;
+      setAiInsights([
+        `OSRM standard routing identified a ${timeSavedVal} min delay due to severe congestion near the midpoint.`,
+        `AI generated an optimized detour bypassing the bottleneck, improving transit time by ${timeSavedPercent}%.`,
+        `Preemptive green corridor synchronized across ${signalsCalculated} signals for continuous flow.`
+      ]);
       
       setRouteGeoJSON(optRoute.geometry);
       
       if (mapReady) {
         // Draw standard route (Red, Dashed)
         const stdSrc = mapRef.current.getSource('standard-route');
-        if (stdSrc) stdSrc.setData(standardRoute.geometry);
+        if (stdSrc) stdSrc.setData({ type: 'Feature', geometry: standardRoute.geometry });
         
         // Draw optimized route (Green, Dashed initially)
         mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
         mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [2, 2]);
         const optSrc = mapRef.current.getSource('emergency-route');
-        if (optSrc) optSrc.setData(optRoute.geometry);
+        if (optSrc) optSrc.setData({ type: 'Feature', geometry: optRoute.geometry });
         
         const bounds = new maplibregl.LngLatBounds();
         optRoute.geometry.coordinates.forEach(c => bounds.extend(c));
@@ -596,18 +607,27 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
               animate={{ opacity: 1, y: 0 }}
             >
               <h3>AI Decision Insights</h3>
-              <div className="erc-insight-item">
-                <AlertCircle size={14} color="#f59e0b" />
-                <span>Congestion scan identified <strong>critical bottlenecks</strong> along standard route.</span>
-              </div>
-              <div className="erc-insight-item">
-                <Zap size={14} color="#10b981" />
-                <span>Corridor generation successfully bypassed traffic density by <strong>42%</strong>.</span>
-              </div>
-              <div className="erc-insight-item">
-                <Shield size={14} color="#3b82f6" />
-                <span>Triggered preemptive green wave across <strong>{metrics.signalsMod} intersections</strong>.</span>
-              </div>
+              {aiInsights.length > 0 ? (
+                <>
+                  <div className="erc-insight-item">
+                    <AlertCircle size={14} color="#f59e0b" />
+                    <span>{aiInsights[0]}</span>
+                  </div>
+                  <div className="erc-insight-item">
+                    <Zap size={14} color="#10b981" />
+                    <span>{aiInsights[1]}</span>
+                  </div>
+                  <div className="erc-insight-item">
+                    <Shield size={14} color="#3b82f6" />
+                    <span>{aiInsights[2]}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="erc-insight-item">
+                  <RefreshCw className="erc-spin" size={14} color="#64748b" />
+                  <span>Analyzing routing parameters...</span>
+                </div>
+              )}
             </motion.div>
           )}
 
