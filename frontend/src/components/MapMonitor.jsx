@@ -812,7 +812,10 @@ export default function MapMonitor({
   // Submit Simulation
   const handleSimulateSubmit = async (e) => {
     e.preventDefault();
-    if (!lat || !lon) return;
+    if (!lat || !lon) {
+      console.warn("[Simulation Console] Lat/Lon coordinates are required to simulate.");
+      return;
+    }
 
     const payload = {
       latitude: parseFloat(lat),
@@ -826,6 +829,8 @@ export default function MapMonitor({
       police_station: "Yelahanka"
     };
 
+    console.log("[Simulation Console] Triggering simulate payload:", payload);
+
     try {
       const res = await fetch(getApiUrl('/api/simulate'), {
         method: 'POST',
@@ -834,36 +839,49 @@ export default function MapMonitor({
       });
       if (res.ok) {
         const event = await res.json();
+        console.log("[Simulation Console] Simulated event response received:", event);
         fetchData();
         setSelectedIncident(event);
+      } else {
+        console.error("[Simulation Console] Simulation request failed with status:", res.status);
       }
     } catch (err) {
-      console.error("Error submitting simulation:", err);
+      console.error("[Simulation Console] Error submitting simulation:", err);
     }
   };
 
   // Spawn Mock
   const spawnMock = async () => {
+    console.log("[Simulation Console] Triggering spawn_mock POST request.");
     try {
       const res = await fetch(getApiUrl('/api/spawn_mock'), { method: 'POST' });
       if (res.ok) {
         const event = await res.json();
+        console.log("[Simulation Console] Spawned mock event response received:", event);
         fetchData();
         setSelectedIncident(event);
+      } else {
+        console.error("[Simulation Console] Spawn mock request failed with status:", res.status);
       }
     } catch (err) {
-      console.error("Error spawning mock:", err);
+      console.error("[Simulation Console] Error spawning mock:", err);
     }
   };
 
   // Clear Mocks
   const clearMocks = async () => {
+    console.log("[Simulation Console] Triggering clear_mock POST request.");
     try {
-      await fetch(getApiUrl('/api/clear_mock'), { method: 'POST' });
-      setSelectedIncident(null);
-      fetchData();
+      const res = await fetch(getApiUrl('/api/clear_mock'), { method: 'POST' });
+      if (res.ok) {
+        console.log("[Simulation Console] All mock and simulated events cleared successfully.");
+        setSelectedIncident(null);
+        fetchData();
+      } else {
+        console.error("[Simulation Console] Clear mock request failed with status:", res.status);
+      }
     } catch (err) {
-      console.error("Error clearing mock data:", err);
+      console.error("[Simulation Console] Error clearing mock data:", err);
     }
   };
 
