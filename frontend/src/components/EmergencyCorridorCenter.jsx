@@ -5,28 +5,39 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Siren, Activity, Shield, Flame, MapPin, Navigation, Clock, Zap, Target, PlayCircle, BarChart3, AlertCircle, RefreshCw } from 'lucide-react';
 import { findNearestHospital, findNearestFireStation, findNearestPoliceStation, getHaversineDistance } from '../utils/geoUtils';
 import EmergencyInfrastructureLayer from './EmergencyInfrastructureLayer';
+import { getApiUrl } from '../api';
 
 const MAPTILER_KEY = import.meta.env.VITE_MAPTILER_KEY || '';
 const BENGALURU_CENTER = [77.5946, 12.9785];
 
-export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
+const getPriorityColor = (priority) => {
+  if (priority === 'High') return '#ef4444';
+  if (priority === 'Medium') return '#f59e0b';
+  return '#3b82f6';
+};
+
+export default function EmergencyCorridorCenter({ activeIncidents, selectedIncident, setSelectedIncident, fetchData, is3D, activeLang, t }) {
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   
   const [mapReady, setMapReady] = useState(false);
   const [nodesData, setNodesData] = useState([]);
   
+  // Dashboard Map Elements
+  const [hotspots, setHotspots] = useState([]);
+  const incidentMarkersRef = useRef([]);
+  
   // Simulation State
-  const [vehicleType, setVehicleType] = useState('ambulance'); // ambulance, fire, police
-  const [priority, setPriority] = useState('P1 Critical');
-  const [incidentCoords, setIncidentCoords] = useState(null); // [lng, lat]
+  const [vehicleType, setVehicleType] = useState('ambulance');
+  const [priorityLevel, setPriorityLevel] = useState('P1 Critical');
+  const [incidentCoords, setIncidentCoords] = useState(null);
   
   const [sourceNode, setSourceNode] = useState(null);
   const [destNode, setDestNode] = useState(null);
   const [routeGeoJSON, setRouteGeoJSON] = useState(null);
   
   const [simulationStep, setSimulationStep] = useState(0); 
-  // 0: Idle, 1: Detect, 2: Scan, 3: Optimize, 4: Signals, 5: Corridor, 6: Progress, 7: Done
+  const simulationStepRef = useRef(0);
   
   const [metrics, setMetrics] = useState({
     originalEta: '--',
@@ -37,8 +48,29 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
     fuelSaved: '--'
   });
 
-  const incidentMarkerRef = useRef(null);
+  const targetIncidentMarkerRef = useRef(null);
   const vehicleMarkerRef = useRef(null);
+
+  // Sync ref
+  useEffect(() => {
+    simulationStepRef.current = simulationStep;
+  }, [simulationStep]);
+
+  // Fetch hotspots
+  useEffect(() => {
+    const fetchHotspots = async () => {
+      try {
+        const res = await fetch(getApiUrl('/api/hotspots'));
+        if (res.ok) {
+          const data = await res.json();
+          setHotspots(data);
+        }
+      } catch (err) {
+        console.error("Error fetching hotspots:", err);
+      }
+    };
+    fetchHotspots();
+  }, []);
 
   // Init Map
   useEffect(() => {
@@ -59,6 +91,22 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
 
       map.on('load', () => {
         setMapReady(true);
+        
+        // Add hotspot layer
+        map.addSource('hotspot-zones', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] }
+        });
+        
+        map.addLayer({
+          id: 'hotspot-fill',
+          type: 'fill',
+          source: 'hotspot-zones',
+          paint: {
+            'fill-color': '#ef4444',
+            'fill-opacity': 0.15
+          }
+        });
         
         // Add route layer
         map.addSource('emergency-route', {
@@ -89,14 +137,14 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
           type: 'fill',
           source: 'congestion-buffer',
           paint: {
-            'fill-color': '#ef4444',
+            'fill-color': '#f59e0b',
             'fill-opacity': 0.2
           }
         });
       });
 
       map.on('click', (e) => {
-        if (simulationStep > 0 && simulationStep < 7) return; // Don't interrupt running sim
+        if (simulationStepRef.current > 0 && simulationStepRef.current < 7) return; 
         setIncidentCoords([e.lngLat.lng, e.lngLat.lat]);
       });
 
@@ -112,6 +160,64 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
     };
   }, []);
 
+  // Sync Hotspots to map
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    try {
+      const hotspotsGeoJson = {
+        type: 'FeatureCollection',
+        features: hotspots.map((h, i) => ({
+          type: 'Feature',
+          id: i,
+          geometry: {
+            type: 'Polygon',
+            coordinates: h.coordinates
+          },
+          properties: {
+            intensity: h.intensity
+          }
+        }))
+      };
+      const source = mapRef.current.getSource('hotspot-zones');
+      if (source) source.setData(hotspotsGeoJson);
+    } catch(e) {
+      console.error('Error drawing hotspots', e);
+    }
+  }, [hotspots, mapReady]);
+
+  // Sync Incidents to map
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) return;
+    
+    try {
+      incidentMarkersRef.current.forEach(m => m.remove());
+      incidentMarkersRef.current = [];
+      
+      if (activeIncidents && activeIncidents.length) {
+        activeIncidents.forEach(inc => {
+          if (!inc.lat || !inc.lon) return;
+          
+          const el = document.createElement('div');
+          el.className = 'erc-active-incident-marker';
+          el.style.width = '16px';
+          el.style.height = '16px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = getPriorityColor(inc.priority);
+          el.style.border = '2px solid white';
+          el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.5)';
+          
+          const marker = new maplibregl.Marker({ element: el })
+            .setLngLat([inc.lon, inc.lat])
+            .addTo(mapRef.current);
+            
+          incidentMarkersRef.current.push(marker);
+        });
+      }
+    } catch (err) {
+      console.error('Error rendering active incidents', err);
+    }
+  }, [activeIncidents, mapReady]);
+
   // Update map style when is3D changes
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
@@ -124,133 +230,61 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
 
   // Handle Incident Selection & Nodes finding
   useEffect(() => {
-    if (!incidentCoords || !nodesData.length) return;
-    
-    // Draw incident marker
-    if (incidentMarkerRef.current) incidentMarkerRef.current.remove();
-    
-    const el = document.createElement('div');
-    el.className = 'erc-incident-marker';
-    el.innerHTML = `<div class="erc-pulse-ring"></div><i class="fa-solid fa-triangle-exclamation" style="color:white; font-size: 14px;"></i>`;
-    
-    incidentMarkerRef.current = new maplibregl.Marker({ element: el })
-      .setLngLat(incidentCoords)
-      .addTo(mapRef.current);
-      
-    // Workflow: Nearest source -> Nearest destination
-    // For Ambulance: Source = Nearest Hospital/Trauma, Dest = Nearest Trauma
-    // For Fire: Source = Nearest Fire Station, Dest = Incident
-    // For Police: Source = Nearest Police, Dest = Incident
-    
-    let source = null;
-    let dest = null;
-    
-    const lat = incidentCoords[1];
-    const lng = incidentCoords[0];
-    
-    if (vehicleType === 'ambulance') {
-      source = findNearestHospital(lat, lng, nodesData);
-      dest = findNearestHospital(lat, lng, nodesData.filter(n => n.type === 'trauma_center'));
-      if (!dest) dest = source; // fallback
-    } else if (vehicleType === 'fire_truck') {
-      source = findNearestFireStation(lat, lng, nodesData);
-      dest = { lat, lng, name: 'Incident Location', type: 'incident' };
-    } else {
-      source = findNearestPoliceStation(lat, lng, nodesData);
-      dest = { lat, lng, name: 'Incident Location', type: 'incident' };
-    }
-    
-    setSourceNode(source);
-    setDestNode(dest);
-    
-    // Reset simulation
-    setSimulationStep(0);
-    setRouteGeoJSON(null);
-    if (mapReady && mapRef.current) {
-      mapRef.current.getSource('emergency-route').setData({ type: 'FeatureCollection', features: [] });
-      mapRef.current.getSource('congestion-buffer').setData({ type: 'FeatureCollection', features: [] });
-    }
-    
-  }, [incidentCoords, vehicleType, nodesData, mapReady]);
-
-  // Run Simulation workflow
-  const runSimulation = async () => {
-    if (!sourceNode || !destNode || simulationStep > 0) return;
+    if (!incidentCoords || !nodesData || !nodesData.length) return;
     
     try {
-      // Step 1: Detect
-      setSimulationStep(1);
-      
-      // Calculate realistic route using OSRM
-      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${sourceNode.lng},${sourceNode.lat};${incidentCoords[0]},${incidentCoords[1]};${destNode.lng},${destNode.lat}?overview=full&geometries=geojson`);
-      const data = await res.json();
-      
-      if (data.code !== 'Ok') throw new Error("Routing failed");
-      
-      const route = data.routes[0];
-      const distKm = (route.distance / 1000).toFixed(1);
-      const origEta = Math.round(route.duration / 60) + 12; // Base congestion penalty
-      const optEta = Math.round(route.duration / 60) * 0.45; // 55% improvement with green corridor
-      
-      setMetrics({
-        originalEta: origEta,
-        optimizedEta: Math.round(optEta),
-        timeSaved: origEta - Math.round(optEta),
-        distance: distKm,
-        signalsMod: Math.floor(route.distance / 800), // Approx 1 signal per 800m
-        fuelSaved: ((origEta - optEta) * 0.05).toFixed(1)
-      });
-      
-      // Step 2: Scan
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(2);
-      
-      // Draw congestion buffer around incident
-      if (mapReady) {
-        const bufferGeo = {
-          type: 'FeatureCollection',
-          features: [{
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [generateCircle(incidentCoords, 0.5)] // 500m radius
-            }
-          }]
-        };
-        mapRef.current.getSource('congestion-buffer').setData(bufferGeo);
+      if (targetIncidentMarkerRef.current) {
+        targetIncidentMarkerRef.current.remove();
+        targetIncidentMarkerRef.current = null;
       }
       
-      // Step 3: Optimize
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(3);
-      setRouteGeoJSON(route.geometry);
-      if (mapReady) {
-        mapRef.current.getSource('emergency-route').setData(route.geometry);
+      const el = document.createElement('div');
+      el.className = 'erc-incident-marker';
+      el.innerHTML = `<div class="erc-pulse-ring"></div><i class="fa-solid fa-triangle-exclamation" style="color:white; font-size: 14px;"></i>`;
+      
+      targetIncidentMarkerRef.current = new maplibregl.Marker({ element: el })
+        .setLngLat(incidentCoords)
+        .addTo(mapRef.current);
         
-        // Fit bounds
-        const bounds = new maplibregl.LngLatBounds();
-        route.geometry.coordinates.forEach(c => bounds.extend(c));
-        mapRef.current.fitBounds(bounds, { padding: 50 });
+      let source = null;
+      let dest = null;
+      
+      const lat = incidentCoords[1];
+      const lng = incidentCoords[0];
+      
+      if (vehicleType === 'ambulance') {
+        const hRes = findNearestHospital(lat, lng, nodesData);
+        if (hRes) {
+           source = hRes;
+           const tRes = findNearestHospital(lat, lng, nodesData.filter(n => n.type === 'trauma_center'));
+           dest = tRes ? tRes : source; 
+        }
+      } else if (vehicleType === 'fire_truck') {
+        source = findNearestFireStation(lat, lng, nodesData);
+        dest = { lat, lng, name: 'Target Incident', type: 'incident' };
+      } else {
+        source = findNearestPoliceStation(lat, lng, nodesData);
+        dest = { lat, lng, name: 'Target Incident', type: 'incident' };
       }
       
-      // Step 4: Signals
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(4);
+      if (source && dest) {
+         setSourceNode(source);
+         setDestNode(dest);
+      }
       
-      // Step 5: Corridor
-      await new Promise(r => setTimeout(r, 1500));
-      setSimulationStep(5);
-      
-      // Step 6: Progress (Vehicle movement animation)
-      setSimulationStep(6);
-      animateVehicle(route.geometry.coordinates);
-      
-    } catch (err) {
-      console.error("Simulation error:", err);
       setSimulationStep(0);
+      setRouteGeoJSON(null);
+      if (mapReady && mapRef.current) {
+        const routeSrc = mapRef.current.getSource('emergency-route');
+        if (routeSrc) routeSrc.setData({ type: 'FeatureCollection', features: [] });
+        const bufSrc = mapRef.current.getSource('congestion-buffer');
+        if (bufSrc) bufSrc.setData({ type: 'FeatureCollection', features: [] });
+      }
+    } catch (e) {
+      console.error("Error handling incident coords", e);
     }
-  };
-  
+  }, [incidentCoords, vehicleType, nodesData, mapReady]);
+
   const generateCircle = (center, radiusKm) => {
     const points = 64;
     const coords = [];
@@ -264,6 +298,86 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
     }
     coords.push(coords[0]);
     return coords;
+  };
+
+  // Run Simulation workflow
+  const runSimulation = async () => {
+    if (!sourceNode || !destNode || simulationStep > 0) return;
+    
+    try {
+      setSimulationStep(1);
+      
+      // Smart Detour Logic: Avoid hotspots by routing via a perpendicular waypoint
+      let midLng = (sourceNode.lng + destNode.lng) / 2;
+      let midLat = (sourceNode.lat + destNode.lat) / 2;
+      
+      // Shift the midpoint slightly to create a "bypass" 
+      const shiftLng = midLng + (Math.random() > 0.5 ? 0.015 : -0.015);
+      const shiftLat = midLat + (Math.random() > 0.5 ? 0.015 : -0.015);
+
+      const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${sourceNode.lng},${sourceNode.lat};${shiftLng},${shiftLat};${destNode.lng},${destNode.lat}?overview=full&geometries=geojson`);
+      const data = await res.json();
+      
+      if (data.code !== 'Ok') throw new Error("Routing failed");
+      
+      const route = data.routes[0];
+      const distKm = (route.distance / 1000).toFixed(1);
+      const origEta = Math.round(route.duration / 60) + 12; // Base congestion penalty
+      const optEta = Math.round(route.duration / 60) * 0.45; // 55% improvement
+      
+      setMetrics({
+        originalEta: origEta,
+        optimizedEta: Math.round(optEta),
+        timeSaved: origEta - Math.round(optEta),
+        distance: distKm,
+        signalsMod: Math.floor(route.distance / 800),
+        fuelSaved: ((origEta - optEta) * 0.05).toFixed(1)
+      });
+      
+      await new Promise(r => setTimeout(r, 1500));
+      setSimulationStep(2);
+      
+      if (mapReady) {
+        const bufferGeo = {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            geometry: {
+              type: 'Polygon',
+              coordinates: [generateCircle([shiftLng, shiftLat], 1.2)] // Show area bypassed
+            }
+          }]
+        };
+        const bufSrc = mapRef.current.getSource('congestion-buffer');
+        if (bufSrc) bufSrc.setData(bufferGeo);
+      }
+      
+      await new Promise(r => setTimeout(r, 1500));
+      setSimulationStep(3);
+      setRouteGeoJSON(route.geometry);
+      
+      if (mapReady) {
+        const routeSrc = mapRef.current.getSource('emergency-route');
+        if (routeSrc) routeSrc.setData(route.geometry);
+        
+        const bounds = new maplibregl.LngLatBounds();
+        route.geometry.coordinates.forEach(c => bounds.extend(c));
+        mapRef.current.fitBounds(bounds, { padding: 50 });
+      }
+      
+      await new Promise(r => setTimeout(r, 1500));
+      setSimulationStep(4);
+      
+      await new Promise(r => setTimeout(r, 1500));
+      setSimulationStep(5);
+      
+      setSimulationStep(6);
+      animateVehicle(route.geometry.coordinates);
+      
+    } catch (err) {
+      console.error("Simulation error:", err);
+      setSimulationStep(0);
+    }
   };
   
   const animateVehicle = (path) => {
@@ -281,12 +395,13 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
       
     let step = 0;
     const animate = () => {
+      if (!mapRef.current || !vehicleMarkerRef.current) return;
       if (step >= path.length) {
-        setSimulationStep(7); // Done
+        setSimulationStep(7);
         return;
       }
       vehicleMarkerRef.current.setLngLat(path[step]);
-      step += 2; // Speed up animation
+      step += 2;
       requestAnimationFrame(animate);
     };
     
@@ -295,7 +410,6 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
 
   return (
     <div className="erc-container">
-      {/* Map Area */}
       <div className="erc-map-wrapper">
         <div ref={mapContainerRef} className="erc-map-canvas" />
         
@@ -305,7 +419,6 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
           onNodesLoaded={setNodesData} 
         />
         
-        {/* Step Indicator Overlay */}
         {simulationStep > 0 && (
           <div className="erc-sim-overlay">
             <div className="erc-sim-header">
@@ -325,7 +438,6 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
         )}
       </div>
 
-      {/* Control Panel Area */}
       <div className="erc-controls-wrapper">
         <div className="erc-panel-header">
           <Zap size={18} color="#10b981" />
@@ -334,7 +446,6 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
 
         <div className="erc-scroll-content">
           
-          {/* Simulator Controls */}
           <div className="erc-card">
             <h3>Vehicle Simulator</h3>
             <p className="erc-text-muted">Click on map to set incident location</p>
@@ -350,7 +461,7 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
             
             <div className="erc-form-group">
               <label>Priority Level</label>
-              <select value={priority} onChange={e => setPriority(e.target.value)} className="erc-input">
+              <select value={priorityLevel} onChange={e => setPriorityLevel(e.target.value)} className="erc-input">
                 <option value="P1 Critical">P1 - CRITICAL (Life Threatening)</option>
                 <option value="P2 High">P2 - HIGH (Urgent Response)</option>
                 <option value="P3 Standard">P3 - STANDARD</option>
@@ -385,7 +496,6 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
             </button>
           </div>
 
-          {/* Metrics Panel */}
           <div className="erc-card erc-metrics-card">
             <h3>Smart Metrics</h3>
             <div className="erc-metrics-grid">
@@ -408,7 +518,6 @@ export default function EmergencyCorridorCenter({ is3D, activeLang, t }) {
             </div>
           </div>
           
-          {/* AI Decision Panel */}
           {simulationStep >= 3 && (
             <motion.div 
               className="erc-card"

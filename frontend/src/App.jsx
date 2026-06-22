@@ -549,6 +549,10 @@ export default function App() {
                 className="tab-pane"
               >
                 <EmergencyCorridorCenter
+                  activeIncidents={activeIncidents}
+                  selectedIncident={selectedIncident}
+                  setSelectedIncident={setSelectedIncident}
+                  fetchData={fetchData}
                   t={t}
                   activeLang={activeLang}
                   is3D={is3D}
