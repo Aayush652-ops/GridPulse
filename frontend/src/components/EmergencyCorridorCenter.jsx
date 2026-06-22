@@ -58,6 +58,60 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
     simulationStepRef.current = simulationStep;
   }, [simulationStep]);
 
+  const ensureLayersExist = (map) => {
+    if (!map) return;
+    
+    if (!map.getSource('hotspot-zones')) {
+      map.addSource('hotspot-zones', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    }
+    if (!map.getLayer('hotspot-fill')) {
+      map.addLayer({
+        id: 'hotspot-fill',
+        type: 'fill',
+        source: 'hotspot-zones',
+        paint: { 'fill-color': '#ef4444', 'fill-opacity': 0.15 }
+      });
+    }
+
+    if (!map.getSource('standard-route')) {
+      map.addSource('standard-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    }
+    if (!map.getLayer('standard-route-line')) {
+      map.addLayer({
+        id: 'standard-route-line',
+        type: 'line',
+        source: 'standard-route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#ef4444', 'line-width': 4, 'line-dasharray': [2, 2], 'line-opacity': 0.7 }
+      });
+    }
+
+    if (!map.getSource('emergency-route')) {
+      map.addSource('emergency-route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    }
+    if (!map.getLayer('emergency-route-line')) {
+      map.addLayer({
+        id: 'emergency-route-line',
+        type: 'line',
+        source: 'emergency-route',
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: { 'line-color': '#f59e0b', 'line-width': 6, 'line-opacity': 0.8, 'line-dasharray': [2, 2] }
+      });
+    }
+
+    if (!map.getSource('congestion-buffer')) {
+      map.addSource('congestion-buffer', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    }
+    if (!map.getLayer('congestion-buffer-fill')) {
+      map.addLayer({
+        id: 'congestion-buffer-fill',
+        type: 'fill',
+        source: 'congestion-buffer',
+        paint: { 'fill-color': '#f59e0b', 'fill-opacity': 0.2 }
+      });
+    }
+  };
+
   // Fetch hotspots
   useEffect(() => {
     const fetchHotspots = async () => {
@@ -93,76 +147,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
 
       map.on('load', () => {
         setMapReady(true);
-        
-        // Add hotspot layer
-        map.addSource('hotspot-zones', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-        
-        map.addLayer({
-          id: 'hotspot-fill',
-          type: 'fill',
-          source: 'hotspot-zones',
-          paint: {
-            'fill-color': '#ef4444',
-            'fill-opacity': 0.15
-          }
-        });
-        
-        // Add standard route layer (Least Optimized)
-        map.addSource('standard-route', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-        
-        map.addLayer({
-          id: 'standard-route-line',
-          type: 'line',
-          source: 'standard-route',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#ef4444',
-            'line-width': 4,
-            'line-dasharray': [2, 2],
-            'line-opacity': 0.7
-          }
-        });
-        
-        // Add route layer
-        map.addSource('emergency-route', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-        
-        map.addLayer({
-          id: 'emergency-route-line',
-          type: 'line',
-          source: 'emergency-route',
-          layout: { 'line-join': 'round', 'line-cap': 'round' },
-          paint: {
-            'line-color': '#f59e0b', // Initially yellow/orange to indicate proposed
-            'line-width': 6,
-            'line-opacity': 0.8,
-            'line-dasharray': [2, 2]
-          }
-        });
-        
-        // Add congestion buffer
-        map.addSource('congestion-buffer', {
-          type: 'geojson',
-          data: { type: 'FeatureCollection', features: [] }
-        });
-        
-        map.addLayer({
-          id: 'congestion-buffer-fill',
-          type: 'fill',
-          source: 'congestion-buffer',
-          paint: {
-            'fill-color': '#f59e0b',
-            'fill-opacity': 0.2
-          }
-        });
+        ensureLayersExist(map);
       });
 
       map.on('click', (e) => {
@@ -186,6 +171,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
   useEffect(() => {
     if (!mapReady || !mapRef.current) return;
     try {
+      ensureLayersExist(mapRef.current);
       const hotspotsGeoJson = {
         type: 'FeatureCollection',
         features: hotspots.map((h, i) => ({
@@ -246,9 +232,18 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
     const style = is3D 
       ? `https://api.maptiler.com/maps/hybrid/style.json?key=${MAPTILER_KEY}`
       : `https://api.maptiler.com/maps/dataviz-light/style.json?key=${MAPTILER_KEY}`;
+    
+    mapRef.current.once('styledata', () => {
+      ensureLayersExist(mapRef.current);
+      // Re-trigger path logic if source and dest are already set so they aren't lost visually
+      if (sourceNode && destNode) {
+        fetchAndHighlightPath(sourceNode, destNode);
+      }
+    });
+
     mapRef.current.setStyle(style);
     mapRef.current.easeTo({ pitch: is3D ? 55 : 0 });
-  }, [is3D, mapReady]);
+  }, [is3D, mapReady, sourceNode, destNode]);
 
   // Handle Incident Selection & Nodes finding
   useEffect(() => {
@@ -309,6 +304,7 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       
       // Reset map layers
       if (mapReady && mapRef.current) {
+        ensureLayersExist(mapRef.current);
         const routeSrc = mapRef.current.getSource('emergency-route');
         if (routeSrc) routeSrc.setData({ type: 'FeatureCollection', features: [] });
         
@@ -332,7 +328,8 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       const problemPoint = coords[midPointIndex];
       
       // Draw congestion buffer exactly on the problem point
-      if (mapReady) {
+      if (mapReady && mapRef.current) {
+        ensureLayersExist(mapRef.current);
         const bufferGeo = {
           type: 'FeatureCollection',
           features: [{
@@ -395,14 +392,18 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       
       setRouteGeoJSON(optRoute.geometry);
       
-      if (mapReady) {
+      if (mapReady && mapRef.current) {
+        ensureLayersExist(mapRef.current);
+        
         // Draw standard route (Red, Dashed)
         const stdSrc = mapRef.current.getSource('standard-route');
         if (stdSrc) stdSrc.setData({ type: 'Feature', geometry: standardRoute.geometry });
         
         // Draw optimized route (Green, Dashed initially)
-        mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
-        mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [2, 2]);
+        if (mapRef.current.getLayer('emergency-route-line')) {
+          mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
+          mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [2, 2]);
+        }
         const optSrc = mapRef.current.getSource('emergency-route');
         if (optSrc) optSrc.setData({ type: 'Feature', geometry: optRoute.geometry });
         
@@ -431,9 +432,12 @@ export default function EmergencyCorridorCenter({ activeIncidents, selectedIncid
       setSimulationStep(2);
       
       if (mapReady && mapRef.current) {
+        ensureLayersExist(mapRef.current);
         // Change route style to solid green corridor
-        mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
-        mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [1, 0]);
+        if (mapRef.current.getLayer('emergency-route-line')) {
+          mapRef.current.setPaintProperty('emergency-route-line', 'line-color', '#10b981');
+          mapRef.current.setPaintProperty('emergency-route-line', 'line-dasharray', [1, 0]);
+        }
       }
       
       await new Promise(r => setTimeout(r, 1000));
