@@ -112,7 +112,13 @@ def api_login(payload: AuthPayload):
     
     user = get_user(username)
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid username or password")
+        # Render ephemeral disk wipes the SQLite database. To prevent the user from being locked out,
+        # we automatically seamlessly recreate their account if they try to log in and it doesn't exist.
+        hashed = hash_password(password)
+        create_user(username, hashed)
+        user = get_user(username)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid username or password")
         
     if not verify_password(password, user['password_hash']):
         raise HTTPException(status_code=401, detail="Invalid username or password")

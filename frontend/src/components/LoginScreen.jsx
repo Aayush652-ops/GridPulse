@@ -78,6 +78,14 @@ export default function LoginScreen({ activeLang, setActiveLang, onLoginSuccess 
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [accessGranted, setAccessGranted] = useState(false);
 
+  // Video explicit playback control
+  const loginVideoRef = useRef(null);
+  useEffect(() => {
+    if (loginVideoRef.current) {
+      loginVideoRef.current.play().catch(e => console.error("Login video play error:", e));
+    }
+  }, []);
+
   // Preview tab
   const [activePreviewTab, setActivePreviewTab] = useState('monitor');
 
@@ -353,7 +361,7 @@ export default function LoginScreen({ activeLang, setActiveLang, onLoginSuccess 
         
         {/* SECTION 1: HERO */}
         <section id="hero" className="landing-hero">
-          <video className="hero-video-bg" autoPlay loop muted playsInline preload="auto">
+          <video ref={loginVideoRef} className="hero-video-bg" autoPlay loop muted playsInline preload="metadata">
             <source src="/traffic_hero.mp4" type="video/mp4" />
           </video>
           <div className="hero-video-overlay"></div>

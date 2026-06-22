@@ -10,7 +10,8 @@ export default function BackgroundLayer() {
     let intervalId;
 
     const syncVideoToTime = () => {
-      if (Number.isNaN(video.duration) || video.duration === 0) return;
+      // Use isFinite to perfectly guard against NaN or Infinity
+      if (!video || !isFinite(video.duration) || video.duration === 0) return;
 
       const now = new Date();
       const secondsSinceMidnight = 
@@ -19,27 +20,39 @@ export default function BackgroundLayer() {
         now.getSeconds() + 
         now.getMilliseconds() / 1000;
       
-      // Calculate how far we are into the 24-hour day (0.0 to 1.0)
       const fractionOfDay = secondsSinceMidnight / 86400;
-      
-      // Explicitly set the video frame to match the time of day
       video.currentTime = fractionOfDay * video.duration;
     };
 
+    const initializeClock = () => {
+      // Browsers will often render a black frame if a video is paused before it ever plays.
+      // We force it to play for a microsecond, then pause it, to guarantee the frame paints.
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          video.pause();
+          syncVideoToTime();
+          intervalId = setInterval(syncVideoToTime, 1000);
+        }).catch(() => {
+          // Fallback if auto-play is strictly blocked
+          syncVideoToTime();
+          intervalId = setInterval(syncVideoToTime, 1000);
+        });
+      } else {
+        video.pause();
+        syncVideoToTime();
+        intervalId = setInterval(syncVideoToTime, 1000);
+      }
+    };
+
     const onLoadedMetadata = () => {
-      // Pause the video because we will manually control the frames like a clock
-      video.pause(); 
-      syncVideoToTime();
-      
-      // Update the frame every second to keep it strictly synced
-      intervalId = setInterval(syncVideoToTime, 1000);
+      initializeClock();
     };
 
     video.addEventListener('loadedmetadata', onLoadedMetadata);
 
-    // If metadata is already loaded when the effect runs, initialize immediately
     if (video.readyState >= 1) {
-      onLoadedMetadata();
+      initializeClock();
     }
 
     return () => {
@@ -65,7 +78,7 @@ export default function BackgroundLayer() {
         muted
         playsInline
         loop
-        preload="auto"
+        preload="metadata"
         style={{
           position: 'absolute',
           width: '100%',
