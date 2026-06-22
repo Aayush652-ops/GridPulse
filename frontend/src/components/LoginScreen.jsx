@@ -931,7 +931,7 @@ export default function LoginScreen({ activeLang, setActiveLang, onLoginSuccess 
           <div className="footer-bottom">
             <div>© {new Date().getFullYear()} GridPulse Inc. All government operations restricted.</div>
             <div className="footer-bottom-links">
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <a href="https://github.com/VANSHTANWAR12/gridpulse" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                 <GithubIcon size={14} /> GitHub
               </a>
               <a href="#team">Team</a>
