@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/Colors';
-import { Typography } from '../../constants/Typography';
-import { Layout } from '../../constants/Layout';
-import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
-import { eventsService } from '../../services/events';
+import { Colors } from '../../../constants/Colors';
+import { Typography } from '../../../constants/Typography';
+import { Layout } from '../../../constants/Layout';
+import { Card } from '../../../components/ui/Card';
+import { Badge } from '../../../components/ui/Badge';
+import { eventsService } from '../../../services/events';
 import { LinearGradient } from 'expo-linear-gradient';
 
 export default function ShockwaveScreen() {

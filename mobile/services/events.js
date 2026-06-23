@@ -1,11 +1,20 @@
 // GridPulse Mobile Commander — Events Service
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from './api';
 
 export const eventsService = {
   async getEvents(status = null) {
     const params = {};
     if (status) params.status = status;
-    return await api.get('/api/events', params);
+    try {
+      const data = await api.get('/api/events', params);
+      await AsyncStorage.setItem('cached_events', JSON.stringify(data));
+      return data;
+    } catch (error) {
+      const cached = await AsyncStorage.getItem('cached_events');
+      if (cached) return JSON.parse(cached);
+      throw error;
+    }
   },
 
   async getActiveEvents() {
@@ -14,7 +23,15 @@ export const eventsService = {
   },
 
   async getHotspots() {
-    return await api.get('/api/hotspots');
+    try {
+      const data = await api.get('/api/hotspots');
+      await AsyncStorage.setItem('cached_hotspots', JSON.stringify(data));
+      return data;
+    } catch (error) {
+      const cached = await AsyncStorage.getItem('cached_hotspots');
+      if (cached) return JSON.parse(cached);
+      return [];
+    }
   },
 
   async getClusters(epsKm = 0.5, minSamples = 2) {
@@ -50,7 +67,15 @@ export const eventsService = {
   },
 
   async getEventOutcomes() {
-    return await api.get('/api/event-outcomes');
+    try {
+      const data = await api.get('/api/event-outcomes');
+      await AsyncStorage.setItem('cached_outcomes', JSON.stringify(data));
+      return data;
+    } catch (error) {
+      const cached = await AsyncStorage.getItem('cached_outcomes');
+      if (cached) return JSON.parse(cached);
+      return [];
+    }
   },
 
   async createEventOutcome(payload) {
@@ -58,7 +83,15 @@ export const eventsService = {
   },
 
   async getLearningAnalytics() {
-    return await api.get('/api/learning-analytics');
+    try {
+      const data = await api.get('/api/learning-analytics');
+      await AsyncStorage.setItem('cached_analytics', JSON.stringify(data));
+      return data;
+    } catch (error) {
+      const cached = await AsyncStorage.getItem('cached_analytics');
+      if (cached) return JSON.parse(cached);
+      throw error;
+    }
   },
 
   async getRoutingSplit(payload) {

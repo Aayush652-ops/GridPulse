@@ -2,10 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../constants/Colors';
-import { Typography } from '../constants/Typography';
-import { Layout } from '../constants/Layout';
-import { chatService } from '../services/chat';
+import { Colors } from '../../constants/Colors';
+import { Typography } from '../../constants/Typography';
+import { Layout } from '../../constants/Layout';
+import { chatService } from '../../services/chat';
 import * as Speech from 'expo-speech';
 import * as Haptics from 'expo-haptics';
 

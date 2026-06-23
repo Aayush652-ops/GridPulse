@@ -1,6 +1,8 @@
+import { Platform } from 'react-native';
+
 // GridPulse Mobile Commander — App Configuration
 export const Config = {
-  // API Configuration — Points to the existing deployed Render backend
+  // API Configuration — Points to Render backend
   API_BASE_URL: 'https://gridpulse-qg9h.onrender.com',
 
   // MapTiler Configuration

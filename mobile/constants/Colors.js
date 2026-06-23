@@ -1,28 +1,28 @@
 // GridPulse Mobile Commander — Design System Colors
 export const Colors = {
   // Primary palette
-  primary: '#0EA5E9',
-  primaryDark: '#0284C7',
-  primaryLight: '#38BDF8',
-  accent: '#22D3EE',
-  accentDark: '#06B6D4',
+  primary: '#00D4FF',
+  primaryDark: '#00A3CC',
+  primaryLight: '#4DE3FF',
+  accent: '#0EA5E9',
+  accentDark: '#0284C7',
 
   // Status colors
-  success: '#10B981',
-  successDark: '#059669',
+  success: '#22C55E',
+  successDark: '#16A34A',
   warning: '#F59E0B',
   warningDark: '#D97706',
   danger: '#EF4444',
   dangerDark: '#DC2626',
-  info: '#6366F1',
-  infoDark: '#4F46E5',
+  info: '#3B82F6',
+  infoDark: '#2563EB',
 
   // Backgrounds (dark mode)
-  background: '#0F172A',
-  backgroundLight: '#131C2E',
-  surface: '#1E293B',
-  surfaceLight: '#253449',
-  surfaceElevated: '#334155',
+  background: '#050B18',
+  backgroundLight: '#0B1426',
+  surface: '#111D35',
+  surfaceLight: '#182745',
+  surfaceElevated: '#213359',
 
   // Text
   textPrimary: '#F8FAFC',
@@ -35,29 +35,29 @@ export const Colors = {
   borderLight: '#475569',
 
   // Gradients (for LinearGradient)
-  gradientPrimary: ['#0EA5E9', '#6366F1'],
-  gradientSuccess: ['#10B981', '#22D3EE'],
+  gradientPrimary: ['#00D4FF', '#0EA5E9'],
+  gradientSuccess: ['#22C55E', '#16A34A'],
   gradientDanger: ['#EF4444', '#F59E0B'],
-  gradientDark: ['#0F172A', '#1E293B'],
-  gradientCard: ['rgba(30,41,59,0.9)', 'rgba(15,23,42,0.95)'],
+  gradientDark: ['#050B18', '#111D35'],
+  gradientCard: ['rgba(17,29,53,0.9)', 'rgba(5,11,24,0.95)'],
 
   // Severity colors
-  severityLow: '#10B981',
+  severityLow: '#22C55E',
   severityMedium: '#F59E0B',
   severityHigh: '#EF4444',
   severityCritical: '#DC2626',
 
   // Map specific
   corridorGreen: '#22C55E',
-  corridorBlue: '#3B82F6',
+  corridorBlue: '#00D4FF',
   congestionRed: '#EF4444',
-  hotspotOrange: '#F97316',
+  hotspotOrange: '#F59E0B',
 
   // Overlay
-  overlay: 'rgba(0,0,0,0.5)',
-  overlayLight: 'rgba(0,0,0,0.3)',
-  glassBg: 'rgba(30,41,59,0.85)',
-  glassBorder: 'rgba(148,163,184,0.15)',
+  overlay: 'rgba(0,0,0,0.6)',
+  overlayLight: 'rgba(0,0,0,0.4)',
+  glassBg: 'rgba(17,29,53,0.7)',
+  glassBorder: 'rgba(0,212,255,0.2)',
 };
 
 export const getSeverityColor = (score) => {

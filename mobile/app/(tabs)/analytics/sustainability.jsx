@@ -3,10 +3,10 @@ import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
 import { Stack } from 'expo-router';
 import { LineChart, ProgressChart } from 'react-native-chart-kit';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/Colors';
-import { Typography } from '../../constants/Typography';
-import { Layout } from '../../constants/Layout';
-import { Card } from '../../components/ui/Card';
+import { Colors } from '../../../constants/Colors';
+import { Typography } from '../../../constants/Typography';
+import { Layout } from '../../../constants/Layout';
+import { Card } from '../../../components/ui/Card';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const screenWidth = Dimensions.get('window').width;

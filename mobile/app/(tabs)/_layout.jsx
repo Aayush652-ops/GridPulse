@@ -23,8 +23,8 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Command',
-          tabBarIcon: ({ color }) => <Ionicons name="apps" size={24} color={color} />,
+          title: 'Home',
+          tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -35,13 +35,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="map"
-        options={{
-          title: 'Map',
-          tabBarIcon: ({ color }) => <Ionicons name="map" size={24} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="emergency"
         options={{
           title: 'Emergency',
@@ -49,10 +42,37 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="analytics/index"
+        options={{
+          title: 'Analytics',
+          tabBarIcon: ({ color }) => <Ionicons name="stats-chart" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="copilot"
+        options={{
+          title: 'Copilot',
+          tabBarIcon: ({ color }) => <Ionicons name="chatbubbles" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+        }}
+      />
+      {/* Hidden tabs that still belong to the layout but shouldn't be in the bottom bar */}
+      <Tabs.Screen
+        name="map"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
         name="more"
         options={{
-          title: 'More',
-          tabBarIcon: ({ color }) => <Ionicons name="menu" size={24} color={color} />,
+          href: null,
         }}
       />
     </Tabs>
