@@ -130,6 +130,30 @@ const MapView = React.forwardRef((props, ref) => {
     }
   }, [props.children]);
 
+  // Handle polyline drawing for routes
+  useEffect(() => {
+    if (mapInstanceRef.current && window.L) {
+      // Clear old polylines
+      if (!window.polylinesList) window.polylinesList = [];
+      window.polylinesList.forEach(p => p.remove());
+      window.polylinesList = [];
+
+      if (props.routes && Array.isArray(props.routes)) {
+        const map = mapInstanceRef.current;
+        props.routes.forEach(r => {
+          if (r.points && Array.isArray(r.points)) {
+            const poly = window.L.polyline(r.points, {
+              color: r.color || '#00D4FF',
+              weight: r.weight || 5,
+              opacity: r.opacity || 0.8
+            }).addTo(map);
+            window.polylinesList.push(poly);
+          }
+        });
+      }
+    }
+  }, [props.routes]);
+
   return (
     <View style={[styles.container, props.style]}>
       <div

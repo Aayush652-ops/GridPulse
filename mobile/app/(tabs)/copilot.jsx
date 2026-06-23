@@ -18,12 +18,22 @@ export default function CopilotScreen() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const flatListRef = useRef(null);
 
-  const handleSend = async () => {
-    if (!inputText.trim()) return;
+  const suggestedPrompts = [
+    'Nearest Hospital',
+    'Generate Corridor',
+    'Traffic Forecast',
+    'Flood Risk',
+    'Alternative Route',
+    'Emergency Report',
+  ];
 
-    const userMessage = { id: Date.now().toString(), role: 'user', content: inputText.trim() };
+  const handleSend = async (customText = null) => {
+    const textToSend = customText || inputText;
+    if (!textToSend.trim()) return;
+
+    const userMessage = { id: Date.now().toString(), role: 'user', content: textToSend.trim() };
     setMessages(prev => [...prev, userMessage]);
-    setInputText('');
+    if (!customText) setInputText('');
     setLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -104,6 +114,22 @@ export default function CopilotScreen() {
         onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
 
+      {/* Suggested prompts list */}
+      <View style={styles.promptsContainer}>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={suggestedPrompts}
+          keyExtractor={item => item}
+          renderItem={({ item }) => (
+            <TouchableOpacity style={styles.promptChip} onPress={() => handleSend(item)}>
+              <Text style={styles.promptChipText}>{item}</Text>
+            </TouchableOpacity>
+          )}
+          contentContainerStyle={{ paddingHorizontal: 12 }}
+        />
+      </View>
+
       <View style={styles.inputArea}>
         <TextInput
           style={styles.input}
@@ -116,7 +142,7 @@ export default function CopilotScreen() {
         />
         <TouchableOpacity 
           style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]} 
-          onPress={handleSend}
+          onPress={() => handleSend()}
           disabled={!inputText.trim() || loading}
         >
           {loading ? (
@@ -155,7 +181,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(14, 165, 233, 0.1)',
+    backgroundColor: 'rgba(0, 212, 255, 0.1)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -171,16 +197,19 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 4,
   },
   messageBubbleAI: {
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: Colors.surface,
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   messageText: {
-    ...Typography.body,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: 'Inter',
   },
   messageTextUser: {
-    color: '#fff',
+    color: '#050B18',
+    fontWeight: '500',
   },
   messageTextAI: {
     color: Colors.textPrimary,
@@ -190,20 +219,41 @@ const styles = StyleSheet.create({
     marginTop: 8,
     padding: 4,
   },
+  promptsContainer: {
+    paddingVertical: 10,
+    backgroundColor: 'rgba(13, 23, 40, 0.4)',
+    borderTopWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  promptChip: {
+    backgroundColor: Colors.surface,
+    borderRadius: Layout.radius.round,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  promptChipText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: Colors.textSecondary,
+    fontFamily: 'Inter',
+  },
   inputArea: {
     flexDirection: 'row',
     padding: 12,
     paddingBottom: Platform.OS === 'ios' ? 24 : 12,
     backgroundColor: Colors.surface,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
     alignItems: 'flex-end',
   },
   input: {
     flex: 1,
     backgroundColor: Colors.background,
     borderWidth: 1,
-    borderColor: Colors.borderLight,
+    borderColor: Colors.border,
     borderRadius: Layout.radius.lg,
     paddingHorizontal: 16,
     paddingTop: 12,
@@ -211,7 +261,8 @@ const styles = StyleSheet.create({
     minHeight: 48,
     maxHeight: 120,
     color: Colors.textPrimary,
-    ...Typography.body,
+    fontFamily: 'Inter',
+    fontSize: 13,
   },
   sendButton: {
     width: 48,
@@ -224,6 +275,6 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   sendButtonDisabled: {
-    backgroundColor: Colors.borderLight,
+    backgroundColor: Colors.border,
   }
 });

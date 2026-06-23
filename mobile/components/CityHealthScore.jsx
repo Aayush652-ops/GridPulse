@@ -6,13 +6,22 @@ import { Typography } from '../constants/Typography';
 
 export function CityHealthScore({ score = 0, subscores = {} }) {
   const radius = 60;
-  const strokeWidth = 12;
+  const strokeWidth = 14;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   let color = Colors.success;
   if (score < 50) color = Colors.danger;
   else if (score < 80) color = Colors.warning;
+
+  // Defaults for subscores
+  const scores = {
+    traffic: subscores.traffic ?? 85,
+    weather: subscores.weather ?? 90,
+    emergency: subscores.emergency ?? 95,
+    infrastructure: subscores.infrastructure ?? 88,
+    resources: subscores.resources ?? 92,
+  };
 
   return (
     <View style={styles.container}>
@@ -23,7 +32,7 @@ export function CityHealthScore({ score = 0, subscores = {} }) {
               cx="80"
               cy="80"
               r={radius}
-              stroke={Colors.border}
+              stroke="#1E293B"
               strokeWidth={strokeWidth}
               fill="transparent"
             />
@@ -42,28 +51,35 @@ export function CityHealthScore({ score = 0, subscores = {} }) {
         </Svg>
         <View style={styles.scoreOverlay}>
           <Text style={[styles.scoreText, { color }]}>{score}</Text>
-          <Text style={styles.scoreLabel}>Health</Text>
+          <Text style={styles.scoreLabel}>Health KPI</Text>
         </View>
       </View>
       
       <View style={styles.subscoresContainer}>
-        <SubScore label="Traffic" value={subscores.traffic} />
-        <SubScore label="Emergency" value={subscores.emergency} />
-        <SubScore label="Weather" value={subscores.weather} />
+        <SubScoreProgress label="Traffic" value={scores.traffic} />
+        <SubScoreProgress label="Weather" value={scores.weather} />
+        <SubScoreProgress label="Emergency Readiness" value={scores.emergency} />
+        <SubScoreProgress label="Infrastructure" value={scores.infrastructure} />
+        <SubScoreProgress label="Resources" value={scores.resources} />
       </View>
     </View>
   );
 }
 
-function SubScore({ label, value = 0 }) {
+function SubScoreProgress({ label, value = 0 }) {
   let color = Colors.success;
   if (value < 50) color = Colors.danger;
   else if (value < 80) color = Colors.warning;
 
   return (
     <View style={styles.subscoreItem}>
-      <Text style={styles.subscoreLabel}>{label}</Text>
-      <Text style={[styles.subscoreValue, { color }]}>{value}%</Text>
+      <View style={styles.subscoreHeader}>
+        <Text style={styles.subscoreLabel}>{label}</Text>
+        <Text style={[styles.subscoreValue, { color }]}>{value}%</Text>
+      </View>
+      <View style={styles.track}>
+        <View style={[styles.bar, { width: `${value}%`, backgroundColor: color }]} />
+      </View>
     </View>
   );
 }
@@ -73,6 +89,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 10,
   },
   chartContainer: {
     position: 'relative',
@@ -87,26 +104,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   scoreText: {
-    ...Typography.metric,
+    fontSize: 36,
+    fontWeight: 'bold',
+    fontFamily: 'Inter',
   },
   scoreLabel: {
-    ...Typography.captionBold,
+    ...Typography.overline,
     color: Colors.textSecondary,
-    textTransform: 'uppercase',
+    marginTop: 2,
+    letterSpacing: 1.5,
   },
   subscoresContainer: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 24,
+    justifyContent: 'center',
   },
   subscoreItem: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
-  subscoreLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+  subscoreHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
+  subscoreLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    fontFamily: 'Inter',
+  },
   subscoreValue: {
-    ...Typography.bodyBold,
-  }
+    fontSize: 12,
+    fontWeight: 'bold',
+    fontFamily: 'Inter',
+  },
+  track: {
+    height: 4,
+    backgroundColor: '#1E293B',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  bar: {
+    height: '100%',
+    borderRadius: 2,
+  },
 });

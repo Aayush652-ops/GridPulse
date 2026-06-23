@@ -20,9 +20,9 @@ export const Colors = {
   // Backgrounds (dark mode)
   background: '#050B18',
   backgroundLight: '#0B1426',
-  surface: '#111D35',
-  surfaceLight: '#182745',
-  surfaceElevated: '#213359',
+  surface: '#0D1728',
+  surfaceLight: '#152238',
+  surfaceElevated: '#1E2F4C',
 
   // Text
   textPrimary: '#F8FAFC',
@@ -31,15 +31,15 @@ export const Colors = {
   textInverse: '#0F172A',
 
   // Borders
-  border: '#334155',
-  borderLight: '#475569',
+  border: '#1E293B',
+  borderLight: '#334155',
 
   // Gradients (for LinearGradient)
   gradientPrimary: ['#00D4FF', '#0EA5E9'],
   gradientSuccess: ['#22C55E', '#16A34A'],
   gradientDanger: ['#EF4444', '#F59E0B'],
-  gradientDark: ['#050B18', '#111D35'],
-  gradientCard: ['rgba(17,29,53,0.9)', 'rgba(5,11,24,0.95)'],
+  gradientDark: ['#050B18', '#0D1728'],
+  gradientCard: ['rgba(13,23,40,0.9)', 'rgba(5,11,24,0.95)'],
 
   // Severity colors
   severityLow: '#22C55E',
