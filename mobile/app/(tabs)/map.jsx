@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, ScrollView, Platform } from 'react-native';
-import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, UrlTile, PROVIDER_DEFAULT } from '../../components/Map';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, getSeverityColor } from '../../constants/Colors';
 import { Typography } from '../../constants/Typography';

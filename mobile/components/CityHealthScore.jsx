@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
-import { Colors } from '../../constants/Colors';
-import { Typography } from '../../constants/Typography';
+import { Colors } from '../constants/Colors';
+import { Typography } from '../constants/Typography';
 
 export function CityHealthScore({ score = 0, subscores = {} }) {
   const radius = 60;
