@@ -7,8 +7,35 @@ import { Config } from '../../constants/Config';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { generateVehicleFleet } from '../../data/emergencyVehicles';
-import { bengaluruHospitals } from '../../data/bengaluruHospitals';
-import { bengaluruPoliceStations, bengaluruFireStations } from '../../data/bengaluruStations';
+const emergencyNodes = require('../../assets/emergency_nodes.json');
+
+const bengaluruHospitals = emergencyNodes.filter(n => n.type === 'hospital' || n.type === 'trauma_center').map(n => ({
+  id: n.id,
+  name: n.name,
+  latitude: n.lat,
+  longitude: n.lng,
+  specialization: n.type === 'trauma_center' ? 'Trauma Center' : 'General Hospital',
+  emergencyCapacity: Math.floor(60 + Math.random() * 35),
+  address: `${n.zone}, Bengaluru`,
+  trauma: n.type === 'trauma_center',
+}));
+
+const bengaluruPoliceStations = emergencyNodes.filter(n => n.type === 'police_station').map(n => ({
+  id: n.id,
+  name: n.name,
+  latitude: n.lat,
+  longitude: n.lng,
+  address: `${n.zone}, Bengaluru`,
+}));
+
+const bengaluruFireStations = emergencyNodes.filter(n => n.type === 'fire_station').map(n => ({
+  id: n.id,
+  name: n.name,
+  latitude: n.lat,
+  longitude: n.lng,
+  address: `${n.zone}, Bengaluru`,
+}));
+
 import { eventsService } from '../../services/events';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
